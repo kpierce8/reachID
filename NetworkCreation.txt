@@ -1,0 +1,57 @@
+This document will cover the creation of the IMW routed layers, watershed boundaries and stream networks.
+
+The beginning data is as follows:
+
+1)	LIDAR elevation raster
+2)  Linework representing streams
+
+Programs used are:
+
+1) ArcGIS 9.x
+2) R programming language
+3) TINN-R (editor for R, not required but useful)
+4) ArcHydro data model for ArcGIS 9.x
+
+
+
+Creating the Hierarchical IDs
+
+1) From the LIDAR hydro lines I created a watershed_lidar_binary file which I edited for routing. Editing involced finding any loops and using the trim/edit feature function to move the appropriate upstream connection to be not connected. The I used the merge edit on the two pieces previously intersected.
+
+2) The fixed lines layer is run through a model I made called Export_Lines_RNET which outputs a DBF file for use in R.
+
+3) The output file is brought into R via the FlowCheckManual script which I use to check for duplicates in the to column. Also the from and to nodes need to be checked in ARC to make sure the pour point has proper flow (and that all other places flow towards it).
+
+4) The ReachID_Main.r script is run. This script calls StreamFunctions.r and BranchRoutine.r. The output from this routine includes a reference to the ObjectID from the original linework passed to the Export_Lines_RNET modelbuilder model as arcid. It also contains the hierarchical reach designations, the concatenated IDs (RID), a sequential route id (RTE_ID), the arcid of the first reach in each route (RTE_arcid) and the ID of the first reach in each route (RTE_IDD).
+
+5) A new feature set was created called <Watershed>_HID with a record for each reach and a second dataset called <Watershed>_HID_Routes using the initial reach HID in each longest path as the route ID for each reach in each path. I then performed a spatial join (which didn't work right. Had to redo it by multiplying the shape_length by 1000 as long int and using that to join) of the Cosentino routes layer with the HID routes layer creating a new layer. I then used the new layer to join as a table to the original HID routes dataset and used the field calculator to copy over the LLID from the Cosentino set as LLID07. Due to slight changes (to eliminate loops) and differences in route paths, not all reaches successfully joined spatially. Loops that were broken were labeled with former LLID, rerouted streams were swapped to reflect new route.
+
+Creating the ArcHydro layers
+
+ Started with Stavis_HID and stavis_lidar clipped DEM.
+
+NOTE make a new gdb with a layers feature dataset and import HID layers also use ApUtilities>Set target locations to make sure you are using the correct database.
+
+Used AH FILL, Flow Direction and Flow Accumulation tools which I believe are the same as the corresponding SA hydro tools.
+
+Used SA>Convert>FeaturestoGrid to convert Stavis_HID to grid of Stavis_OID numbers called sta_HID_grid.
+
+Used that grid for catchment delineation and subsequent catchment polygon generation.
+
+Made sure I had a new geodatabase with a layers Feature Dataset and imported Stavis_HID, Stavis_HHRID_routes and the stavis_Catchments I had made in my former gdb.
+
+Assigned Hydro IDs with AttributeTools>Assign Hydro ID to HID layer and catchments layer. Then used Generate From/To and Find Next Downstream line on the HID layer.
+
+Added GridID field to the HID dataset and filled it with OID field used for the catchment grid. After this the HID layer should act as the DrainageLine feature.
+
+Ran the Adjoint Catchment routine which assigned drain IDs to HID layer.
+
+Ran the Drainage Point routine.
+
+Ran the LongestPath routine which took a long time, maybe longer than the original fill operation.
+
+Tried moving to the TerrainMorphology tab and executed Drainage Area Characterization. Cancelled this because it was late friday. Will try again later.
+
+Ran Hydro Network generation under network tools. That created a lovely working Geometric Network for Stavis.
+
+From attribute tools ran find length downstream for both edges and junctions.
